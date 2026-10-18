@@ -1,0 +1,9 @@
+[project]
+name = "ask-the-course"
+version = "0.1.0"
+description = "Single-shot RAG CLI that answers questions about CPSC 415 using the course's Markdown pages."
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27",
+    "numpy>=1.26",
+]

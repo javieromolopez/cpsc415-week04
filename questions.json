@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "question": "When is the midterm exam?",
+    "expect": "answer",
+    "why": "Single-place fact from syllabus.md > Week 6 — Monday, October 26 (mid-term)."
+  },
+  {
+    "id": 2,
+    "question": "How many late days are students allowed to use across the semester without penalty?",
+    "expect": "answer",
+    "why": "Single-place fact from syllabus.md > Late Submission Policy."
+  },
+  {
+    "id": 3,
+    "question": "What percentage of the course grade does Team Project 1 count for?",
+    "expect": "answer",
+    "why": "Single-place fact from assignments/team-project-1.md."
+  },
+  {
+    "id": 4,
+    "question": "Can late days be applied to Team Project 1, and what happens if a team submits after all late days are exhausted?",
+    "expect": "answer",
+    "why": "Multi-source synthesis across syllabus.md (Late Submission Policy) and assignments/team-project-1.md."
+  },
+  {
+    "id": 5,
+    "question": "What university did the instructor attend for his undergraduate degree?",
+    "expect": "refuse",
+    "why": "Out-of-scope question not present in any course document; tests exact refusal."
+  }
+]

@@ -27,6 +27,7 @@ The steps below build `spec.md`'s two components — **Indexer** (`rag_index.py`
 
 ### 3. Chunker
 - Split each section into chunks of **~800 chars with ~100-char overlap, on sentence boundaries** (`. `, `.\n`, `? `, `! `). Each chunk keeps its `section_heading` metadata.
+- **Empirical tuning:** before sentence-aware chunking, **prepend the section heading to the chunked text** so the embedder captures the heading topic in addition to the body. The `section_heading` field on each chunk is unchanged — citations still use the parsed heading — but the embedded text starts with the heading line. This fixes the case where the answer lives in a short heading but the body is on an unrelated topic (e.g., `### Week 6 — Monday, October 26 (mid-term)` whose body is about image generation). Without prepending, that section ranked 15+ (score 0.17); with prepending, it ranks 8 (score 0.33) for "When is the midterm?".
 - **Behaviors:** #2 (chunks carry source metadata), #3 (sentence-aware chunks).
 - **Why ~800 chars / ~100 overlap?**
   - **Markdown section headers are short (~30–80 chars, e.g., `## 4. The second model`).** An 800-char chunk holds the heading + most of its body in one piece, so retrieval sees one self-contained "fact" rather than splitting a section across many chunks.
@@ -46,7 +47,10 @@ The steps below build `spec.md`'s two components — **Indexer** (`rag_index.py`
 - Two-stage refusal: cosine threshold → prompt grounding with strict "answer only from excerpts" system instruction.
 - Format stdout: answer → `Citations:` block (`- file > section`) → `Retrieved chunks:` block with raw cosine scores.
 - On refusal: print exactly `I can't find that in the course documents.` and exit 0.
-- **Behaviors:** #5 (CLI accepts a single question), #6 (`--no-retrieval`), #8 (prompt-grounding refusal), #9 (exact refusal string), #10 (citations).
+- **Empirical tunings:**
+  - **`TOP_K = 10`** (raised from the originally proposed 5) so the mid-ranked chunk that carries the answer — e.g., `Week 6 — Monday, October 26 (mid-term)` at rank 8 with score 0.33 — actually reaches the LLM's prompt. With `TOP_K = 5` that chunk is outside the top-k and the LLM refuses.
+  - **Cosine threshold = `0.30`** (lowered from the originally proposed `0.5`) after measuring this corpus's score distribution. Observed top scores for in-scope queries cluster at 0.37–0.40; the proposed `0.5` would refuse every query. The threshold still rejects clearly unrelated text (the sanity check on "How do I cook pasta?" scored 0.05).
+- **Behaviors:** #5 (CLI accepts a single question), #6 (`--no-retrieval`), #7 (programmatic refusal), #8 (prompt-grounding refusal), #9 (exact refusal string), #10 (citations), #11 (chunks + raw scores), #12 (disagreement protocol).
 
 ### 6. `questions.json` (authored by the student)
 - 3 single-place facts (e.g., midterm date, grading weight, a lab step), 1 multi-source synthesis (e.g., late-day policy touching both syllabus and an assignment), 1 out-of-scope.

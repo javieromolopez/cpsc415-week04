@@ -21,7 +21,7 @@ Implements `intent/ask-the-course.md` — the single-shot RAG CLI that answers q
   - `numpy` — vector matrix and cosine similarity. Reason: a few-line dot product on a `(N, 1536)` matrix is faster and clearer than a Python loop, and lets us reason about top-k sorting explicitly.
 
 ### Asker
-- **What it does:** Embeds the user's question with the same embedding model, retrieves top-k chunks by cosine similarity, applies a programmatic threshold gate, then asks the LLM to answer strictly from the retrieved excerpts (with strict prompt grounding). Formats the response: synthesized answer → `Citations:` block (`file > section`) → `Retrieved chunks:` block with raw cosine scores. Supports a `--no-retrieval` ablation mode that skips retrieval entirely.
+- **What it does:** Embeds the user's question with the same embedding model, retrieves the top `TOP_K = 10` chunks by cosine similarity, applies a programmatic threshold gate (cosine ≥ `0.30`), then asks the LLM to answer strictly from the retrieved excerpts (with strict prompt grounding). Formats the response: synthesized answer → `Citations:` block (`file > section`) → `Retrieved chunks:` block with raw cosine scores. Supports a `--no-retrieval` ablation mode that skips retrieval entirely. **Empirical tuning:** `TOP_K` is 10 (raised from proposed 5) and the threshold is `0.30` (lowered from proposed 0.5) — see Behavior 7 for rationale.
 - **Language:** Python 3.10+. **Why:** same as Indexer — Python is the project default and the Asker imports `rag_index`'s retriever directly.
 - **Model:** `minimax/minimax-m3`. **Why:** project default per `CLAUDE.md`. **Cheap vs frontier comparison:** `minimax/minimax-m3` vs `anthropic/claude-sonnet-4.5` (frontier). On grounding tasks where the heavy lifting is retrieval, m3 produces correct, cited answers; the frontier model paraphrases the same content more fluently but adds no information and costs ~10x more. m3 is sufficient for this task; Sonnet is left as the swap-in if the eval shows m3 paraphrasing the refusal string or skipping citations.
 - **Interfaces:**
@@ -41,7 +41,7 @@ Numbered; the eval and manual checks verify these.
 4. **Index is cached to `index.json`.** Embeddings + metadata persist to JSON. Cache is invalidated when the corpus's max mtime exceeds the cache's recorded mtime.
 5. **CLI accepts a single question.** `python rag_ask.py "When is the midterm?"` exits 0 and prints answer + citations + retrieved chunks with raw cosine scores.
 6. **CLI accepts `--no-retrieval`.** `python rag_ask.py "..." --no-retrieval` skips retrieval and calls the LLM with no excerpts in the prompt. Used by the eval runner for the ablation.
-7. **Two-stage refusal (programmatic threshold).** If no retrieved chunk scores ≥ the cosine threshold (`0.5` default), the CLI prints exactly `I can't find that in the course documents.` and exits 0 **without calling the LLM**.
+7. **Two-stage refusal (programmatic threshold).** The retriever returns the top `TOP_K = 10` chunks by raw cosine similarity. If none of them scores ≥ the cosine threshold (`0.30`), the CLI prints exactly `I can't find that in the course documents.` and exits 0 **without calling the LLM**. Both values were tuned empirically against this corpus: the originally proposed `0.5` threshold would refuse every query (observed top scores for in-scope queries cluster at 0.37–0.40), and `TOP_K = 5` would leave the mid-ranked chunk that carries the answer (e.g., the `Week 6 — Monday, October 26 (mid-term)` heading) out of the LLM's prompt.
 8. **Two-stage refusal (prompt grounding).** When the threshold is met, the system prompt instructs the LLM to answer only from the retrieved excerpts and to emit the same refusal string if the excerpts do not contain the answer.
 9. **Refusal string is exact.** When either refusal stage fires, the CLI prints exactly `I can't find that in the course documents.` — same case, no surrounding punctuation, no extra whitespace. Matched with `==`, not `in`.
 10. **Answer cites every source used.** When the LLM draws from multiple chunks across multiple files, the `Citations:` block lists each one as `file > section heading`.
@@ -62,11 +62,11 @@ Numbered; the eval and manual checks verify these.
 ## Cost estimate
 Per single invocation (`python rag_ask.py "..."`):
 - 1 embedding call: `text-embedding-3-small`, ~50 tokens for a typical question. Cost: ~$0.000001.
-- 1 LLM call: `minimax/minimax-m3`, ~3k tokens in (system prompt + question + 5 excerpts) + ~200 tokens out. At typical m3 pricing ~$0.30/M input, $1.20/M output: ~$0.0009 + ~$0.00024 ≈ **$0.0012 per question**.
+- 1 LLM call: `minimax/minimax-m3`, ~5k tokens in (system prompt + question + 10 excerpts) + ~200 tokens out. At typical m3 pricing ~$0.30/M input, $1.20/M output: ~$0.0015 + ~$0.00024 ≈ **$0.0018 per question**.
 
-Per eval run (10 invocations: 5 questions × 2 modes): **~$0.012**.
+Per eval run (10 invocations: 5 questions × 2 modes): **~$0.018**.
 
-Semester-of-use estimate: a student running ~100 questions across the semester for studying ≈ **$0.12** — well under the $20 initial budget in `syllabus.md`.
+Semester-of-use estimate: a student running ~100 questions across the semester for studying ≈ **$0.18** — well under the $20 initial budget in `syllabus.md`.
 
 ## Out of scope
 Carried over from `intent/ask-the-course.md`:
